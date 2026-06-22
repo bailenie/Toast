@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+@theme {
+  /* 背景 */
+  --color-bg-page: #FFFCF5;
+  --color-bg-card: #FFFDF9;
+  --color-bg-chat: #FFFDF6;
+  --color-surface: #FFFDF9;
+
+  /* 文字/边框/阴影 */
+  --color-ink: #2D3142;
+  --color-secondary: #6B7280;
+
+  /* 强调 */
+  --color-primary: #FF6B35;
+  --color-accent: #FF6B35;
+  --color-accent-hover: #ff7b4b;
+  --color-accent-bg: #FFE5D9;
+  --color-accent-bg-2: #D8E2DC;
+  --color-accent-bg-3: #D4E8FF;
+
+  /* 功能 */
+  --color-success: #00A896;
+  --color-success-bg: #EDF7F6;
+  --color-danger: #EF4444;
+  --color-danger-bg: #FFE0E0;
+  --color-warning: #F7B32B;
+
+  /* 点阵 */
+  --color-dot-color: #EFEBE9;
+
+  /* 字体 */
+  --font-display: 'Fredoka', 'Microsoft YaHei', 'Inter', sans-serif;
+  --font-sans: 'Inter', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* 阴影预设 */
+  --shadow-sm: 4px 4px 0px #2D3142;
+  --shadow-md: 6px 6px 0px #2D3142;
+  --shadow-lg: 8px 8px 0px #2D3142;
+}
+
+/* 全局样式 */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-page);
+  color: var(--color-ink);
+  min-height: 100vh;
+}
+
+/* 点阵背景 */
+.dot-pattern {
+  background-image: radial-gradient(var(--color-dot-color) 1.5px, transparent 1.5px);
+  background-size: 32px 32px;
+}
+
+/* Cute Shadow 预设类 */
+.cute-shadow-sm {
+  box-shadow: 4px 4px 0px 0px #2D3142;
+  border: 2px solid #2D3142;
+}
+
+.cute-shadow {
+  box-shadow: 6px 6px 0px 0px #2D3142;
+  border: 3px solid #2D3142;
+}
+
+.cute-shadow-lg {
+  box-shadow: 8px 8px 0px 0px #2D3142;
+  border: 4px solid #2D3142;
+}
+
+/* 浮动动画 */
+@keyframes cute-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-cute-float {
+  animation: cute-float 3s ease-in-out infinite;
+}
+
+/* 鱼游动画 */
+@keyframes fish-swim {
+  0%, 100% { transform: scaleX(1) translateX(0); }
+  50% { transform: scaleX(-1) translateX(-20px); }
+}
+
+.animate-fish-swim {
+  animation: fish-swim 6s ease-in-out infinite;
+}
+
+/* 卡牌悬浮 */
+.card-scale {
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.card-scale:hover {
+  transform: scale(1.04) translateY(-4px);
+}
+
+/* 按钮按下反馈 */
+button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+/* 选中不可选 */
+.select-none {
+  user-select: none;
+}
+
+/* 页面淡入动画 (200ms) */
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-page-fade {
+  animation: page-fade-in 200ms ease-out;
+}
