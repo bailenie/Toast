@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  nickname        String
+  avatar          String    @default("moyu_otter")
+  bio             String    @default("")
+  salary          Float     @default(250)
+  workStart       String    @default("09:00")
+  workEnd         String    @default("18:00")
+  isBanned        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  ownedCircles    Circle[]         @relation("CircleOwner")
+  userCircles     UserCircle[]
+  unoCards        UnoCard[]
+  moyuStats       MoyuStat[]
+  signRecords     SignRecord[]
+  circleDecorations CircleDecoration[]
+  exchangeRecords ExchangeRecord[]
+  invites         Invite[]
+
+  @@index([email])
+}
+
+model Circle {
+  id            String   @id @default(uuid())
+  name          String
+  icon          String   @default("🐟")
+  code          String?  @unique
+  ownerId       String?
+  isActive      Boolean  @default(false)
+  memberCount   Int      @default(1)
+  petFishName   String   @default("懵懂胖金鱼")
+  petFishLevel  Int      @default(1)
+  petFishGrowth Int      @default(0)
+  petFishType   String   @default("肥嘟嘟胖金鱼")
+  coinBalance   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner             User?              @relation("CircleOwner", fields: [ownerId], references: [id])
+  userCircles       UserCircle[]
+  invites           Invite[]
+  moyuStats         MoyuStat[]
+  signRecords       SignRecord[]
+  circleDecorations CircleDecoration[]
+  exchangeRecords   ExchangeRecord[]
+
+  @@index([code])
+  @@index([ownerId])
+}
+
+model UserCircle {
+  id        String   @id @default(uuid())
+  userId    String
+  circleId  String
+  joinedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  circle    Circle   @relation(fields: [circleId], references: [id])
+
+  @@unique([userId, circleId])
+  @@index([userId])
+  @@index([circleId])
+}
+
+model Invite {
+  id        String   @id @default(uuid())
+  circleId  String
+  code      String   @unique(map: "Invite_code_key")
+  createdBy String
+  status    String   @default("active")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  circle    Circle   @relation(fields: [circleId], references: [id])
+  creator   User     @relation(fields: [createdBy], references: [id])
+
+  @@index([circleId])
+  @@index([status])
+}
+
+model UnoCard {
+  id        String   @id @default(uuid())
+  userId    String
+  cardId    String
+  cardName  String
+  count     Int      @default(1)
+  rarity    String
+  color     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, cardId])
+  @@index([userId])
+}
+
+model MoyuStat {
+  id            String   @id @default(uuid())
+  userId        String
+  userName      String
+  circleId      String
+  todayCount    Int      @default(0)
+  totalCount    Int      @default(0)
+  lastMoyuDate  String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id])
+  circle        Circle   @relation(fields: [circleId], references: [id])
+
+  @@unique([userId, circleId])
+  @@index([userId])
+  @@index([circleId])
+}
+
+model SignRecord {
+  id         String   @id @default(uuid())
+  userId     String
+  circleId   String
+  signDate   String
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  circle     Circle   @relation(fields: [circleId], references: [id])
+
+  @@unique([userId, circleId, signDate])
+  @@index([userId])
+  @@index([circleId])
+}
+
+model Decoration {
+  id          String  @id @default(uuid())
+  name        String
+  icon        String
+  price       Int
+  description String  @default("")
+
+  circleDecorations CircleDecoration[]
+  exchangeRecords   ExchangeRecord[]
+}
+
+model CircleDecoration {
+  id           String   @id @default(uuid())
+  circleId     String
+  decorationId String
+  purchasedBy  String
+  purchasedAt  DateTime @default(now())
+
+  circle       Circle     @relation(fields: [circleId], references: [id])
+  decoration   Decoration @relation(fields: [decorationId], references: [id])
+  user         User       @relation(fields: [purchasedBy], references: [id])
+
+  @@unique([circleId, decorationId])
+  @@index([circleId])
+}
+
+model ExchangeRecord {
+  id           String   @id @default(uuid())
+  circleId     String
+  userId       String
+  decorationId String
+  cost         Int
+  createdAt    DateTime @default(now())
+
+  circle       Circle     @relation(fields: [circleId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
+  decoration   Decoration @relation(fields: [decorationId], references: [id])
+
+  @@index([circleId])
+  @@index([createdAt])
+}

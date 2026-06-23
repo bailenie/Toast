@@ -1,0 +1,37 @@
+/* 全屏滚动容器 */
+.fullscreen-container {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+/* 隐藏滚动条 */
+.fullscreen-container::-webkit-scrollbar {
+  display: none;
+}
+.fullscreen-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 每个板块占满一屏 */
+.home-section {
+  height: 100vh;
+  scroll-snap-align: start;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 弹幕滚动动画 */
+@keyframes danmaku-scroll {
+  from { transform: translateX(100vw); }
+  to { transform: translateX(-100%); }
+}
+
+.danmaku-item {
+  position: absolute;
+  white-space: nowrap;
+  animation: danmaku-scroll var(--speed) linear var(--delay) infinite both;
+  will-change: transform;
+}
