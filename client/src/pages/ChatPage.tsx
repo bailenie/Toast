@@ -1,5 +1,4 @@
 import { useActiveCircle } from '../contexts/ActiveCircleContext';
-import { BottomTab } from '../components/common/BottomTab';
 import ChatRoom from '../components/chat/ChatRoom';
 
 export function ChatPage() {
@@ -15,7 +14,6 @@ export function ChatPage() {
             <p className="font-bold text-sm text-gray-500">请先加入一个鱼圈</p>
           </div>
         </div>
-        <BottomTab />
       </div>
     );
   }
@@ -25,7 +23,6 @@ export function ChatPage() {
       <div className="flex-1 overflow-hidden">
         <ChatRoom circleId={activeCircleId} circleName={activeCircle?.name || ''} />
       </div>
-      <BottomTab />
     </div>
   );
 }

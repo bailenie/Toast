@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../utils/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { generateUniqueCode } from '../utils/inviteCode.js';
 
 export const circlesRouter = Router();
 
@@ -519,6 +520,30 @@ circlesRouter.get('/:id', authMiddleware, async (req, res) => {
       isMe: uc.user.id === userId,
     }));
 
+    // 查询活跃的邀请码，如果没有则为群主自动创建
+    let invite = await prisma.invite.findFirst({
+      where: {
+        circleId: id,
+        status: 'active',
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!invite && circle.ownerId) {
+      // 自动创建一个新的邀请码
+      const code = await generateUniqueCode();
+      invite = await prisma.invite.create({
+        data: {
+          circleId: id,
+          code,
+          createdBy: circle.ownerId,
+          status: 'active',
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7天有效期
+        },
+      });
+    }
+
     res.json({
       success: true,
       data: {
@@ -529,6 +554,8 @@ circlesRouter.get('/:id', authMiddleware, async (req, res) => {
           ownerId: circle.ownerId,
           isActive: circle.isActive,
           memberCount: circle.memberCount,
+          inviteCode: invite?.code || null,
+          inviteExpiresAt: invite?.expiresAt || null,
           petFishName: circle.petFishName,
           petFishLevel: circle.petFishLevel,
           petFishGrowth: circle.petFishGrowth,

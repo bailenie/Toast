@@ -8,6 +8,7 @@ import { ChatPage } from './pages/ChatPage';
 import GamePage from './pages/GamePage';
 import { SalaryPage } from './pages/SalaryPage';
 import { HomePage } from './pages/HomePage';
+import CircleManagePage from './pages/CircleManagePage';
 
 function LoginPage() {
   return (
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route index element={<ChatPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="game" element={<GamePage />} />
+        <Route path="circle-manage" element={<CircleManagePage />} />
         <Route path="salary" element={<SalaryPage />} />
       </Route>
 

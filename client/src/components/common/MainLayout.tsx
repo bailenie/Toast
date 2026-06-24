@@ -3,6 +3,7 @@ import { useActiveCircle } from '../../contexts/ActiveCircleContext';
 import { CircleSidebar } from '../circle/CircleSidebar';
 import { NewUserGuide } from '../circle/NewUserGuide';
 import Navbar from './Navbar';
+import { BottomTabBar } from './BottomTabBar';
 
 export function MainLayout() {
   const { circles, isLoading } = useActiveCircle();
@@ -40,8 +41,11 @@ export function MainLayout() {
       <Navbar />
       <div className="flex-1 flex overflow-hidden">
         {!isSalaryPage && <CircleSidebar />}
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
+        <main className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+          {!isSalaryPage && <BottomTabBar />}
         </main>
       </div>
     </div>

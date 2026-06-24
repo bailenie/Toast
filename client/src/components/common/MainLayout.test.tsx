@@ -52,4 +52,30 @@ describe('MainLayout - 窝囊费页面独立布局', () => {
     expect(screen.getAllByText('技术部').length).toBeGreaterThan(0);
     expect(screen.getAllByText('市场部').length).toBeGreaterThan(0);
   });
+
+  it('AC-018: 非窝囊费页面显示底部Tab栏', () => {
+    render(
+      <MemoryRouter initialEntries={['/home/chat']}>
+        <MainLayout />
+      </MemoryRouter>
+    );
+
+    // 底部Tab栏应该出现（使用更精确的匹配，因为Navbar中也有"摸鱼鱼"）
+    expect(screen.getByText(/💬 蛐蛐间/)).toBeInTheDocument();
+    expect(screen.getByText(/🎮 摸鱼鱼/)).toBeInTheDocument();
+    expect(screen.getByText(/⚙️ 鱼圈管理/)).toBeInTheDocument();
+  });
+
+  it('AC-018: 窝囊费页面不显示底部Tab栏', () => {
+    render(
+      <MemoryRouter initialEntries={['/home/salary']}>
+        <MainLayout />
+      </MemoryRouter>
+    );
+
+    // 底部Tab栏不应该出现（检查底部Tab栏特有的emoji+文字组合）
+    expect(screen.queryByText(/💬 蛐蛐间/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/🎮 摸鱼鱼/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/⚙️ 鱼圈管理/)).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SalaryConfig as SalaryConfigType } from '../../hooks/useSalary';
+import TimeSelect from '../common/TimeSelect';
 
 interface SalaryConfigProps {
   config: SalaryConfigType;
@@ -14,8 +15,29 @@ export default function SalaryConfig({ config, onSave, loading, error }: SalaryC
   const [workStart, setWorkStart] = useState(config.workStart);
   const [workEnd, setWorkEnd] = useState(config.workEnd);
   const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState('');
+
+  const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    if (val === '') {
+      setSalary(0);
+      setValidationError('');
+    } else {
+      const num = Number(val);
+      if (num > 9999999) {
+        setValidationError('单日工资不能超过9999999');
+        return;
+      }
+      setSalary(num);
+      setValidationError('');
+    }
+  };
 
   const handleSave = async () => {
+    if (salary <= 0) {
+      setValidationError('单日工资为必填项，且必须大于0');
+      return;
+    }
     setSaving(true);
     try {
       await onSave({ salary, workStart, workEnd });
@@ -64,44 +86,35 @@ export default function SalaryConfig({ config, onSave, loading, error }: SalaryC
                 单日工资（元）
               </label>
               <input
-                type="number"
-                value={salary}
-                onChange={(e) => setSalary(Number(e.target.value))}
-                min={0}
+                type="text"
+                inputMode="numeric"
+                value={salary === 0 ? '' : salary}
+                onChange={handleSalaryChange}
+                min={1}
+                max={9999999}
+                placeholder="请输入1-9999999的正整数"
                 className="w-full font-bold text-sm bg-bg-page border-[3px] border-ink rounded-xl px-4 py-3 focus:outline-none focus:border-accent"
               />
             </div>
 
             {/* 上班时间 */}
-            <div>
-              <label className="font-bold text-sm text-gray-600 block mb-1">
-                上班时间
-              </label>
-              <input
-                type="time"
-                value={workStart}
-                onChange={(e) => setWorkStart(e.target.value)}
-                className="w-full font-bold text-sm bg-bg-page border-[3px] border-ink rounded-xl px-4 py-3 focus:outline-none focus:border-accent"
-              />
-            </div>
+            <TimeSelect
+              label="上班时间"
+              value={workStart}
+              onChange={setWorkStart}
+            />
 
             {/* 下班时间 */}
-            <div>
-              <label className="font-bold text-sm text-gray-600 block mb-1">
-                下班时间
-              </label>
-              <input
-                type="time"
-                value={workEnd}
-                onChange={(e) => setWorkEnd(e.target.value)}
-                className="w-full font-bold text-sm bg-bg-page border-[3px] border-ink rounded-xl px-4 py-3 focus:outline-none focus:border-accent"
-              />
-            </div>
+            <TimeSelect
+              label="下班时间"
+              value={workEnd}
+              onChange={setWorkEnd}
+            />
           </div>
 
           {/* 错误提示 */}
-          {error && (
-            <p className="font-bold text-sm text-red-500 mt-3">{error}</p>
+          {(validationError || error) && (
+            <p className="font-bold text-sm text-red-500 mt-3">{validationError || error}</p>
           )}
 
           {/* 保存按钮 */}

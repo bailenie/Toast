@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import { useActiveCircle } from '../contexts/ActiveCircleContext';
-import { BottomTab } from '../components/common/BottomTab';
 import CardDropModal from '../components/game/CardDropModal';
 import Leaderboard from '../components/game/Leaderboard';
 import CardCollection from '../components/game/CardCollection';
@@ -136,7 +135,6 @@ export default function GamePage() {
             <p className="font-bold text-sm text-gray-500">请先加入一个鱼圈</p>
           </div>
         </div>
-        <BottomTab />
       </div>
     );
   }
@@ -226,9 +224,6 @@ export default function GamePage() {
           </div>
         </div>
       </div>
-
-      {/* 底部 Tab */}
-      <BottomTab />
 
       {/* 卡片掉落弹窗 */}
       {showCardModal && (
