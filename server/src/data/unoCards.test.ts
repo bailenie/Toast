@@ -63,26 +63,27 @@ describe('getCardById', () => {
   });
 });
 
-describe('V1.1.0 常量定义', () => {
+describe('V1.3.0 常量定义', () => {
   it('DAILY_MOYU_LIMIT 为 30', () => {
     expect(DAILY_MOYU_LIMIT).toBe(30);
   });
 
-  it('GROWTH_THRESHOLDS 正确定义', () => {
-    expect(GROWTH_THRESHOLDS).toEqual([10, 20, 30]);
+  it('GROWTH_THRESHOLDS 正确定义（4档升级阈值）', () => {
+    expect(GROWTH_THRESHOLDS).toEqual([1000, 2000, 3000, 4000]);
   });
 
-  it('FISH_TYPE_MAP 包含4个等级', () => {
+  it('FISH_TYPE_MAP 包含5个等级', () => {
     expect(FISH_TYPE_MAP[1]).toEqual({ name: '肥嘟嘟胖金鱼', emoji: '🐠' });
     expect(FISH_TYPE_MAP[2]).toEqual({ name: '带薪发愣神游鳌', emoji: '🐙' });
     expect(FISH_TYPE_MAP[3]).toEqual({ name: '太极双休太公鱼', emoji: '🐙' });
     expect(FISH_TYPE_MAP[4]).toEqual({ name: '极品七彩锦鲤皇', emoji: '🎏' });
+    expect(FISH_TYPE_MAP[5]).toEqual({ name: '传说级摸鱼之神', emoji: '🐉' });
   });
 });
 
-describe('drawCard 抽卡概率算法', () => {
+describe('drawCard V1.3.0 抽卡概率算法', () => {
   it('返回 null 或 {card, isNew} 结构', async () => {
-    const result = await drawCard(new Set());
+    const result = await drawCard(new Set(), 0);
     if (result !== null) {
       expect(result.card).toBeDefined();
       expect(result.isNew).toBeDefined();
@@ -91,9 +92,8 @@ describe('drawCard 抽卡概率算法', () => {
   });
 
   it('返回的卡片来自 UNO_CARDS 池', async () => {
-    // 多次抽卡，验证返回的卡片都在池中
     for (let i = 0; i < 50; i++) {
-      const result = await drawCard(new Set());
+      const result = await drawCard(new Set(), 0);
       if (result !== null) {
         const found = UNO_CARDS.find((c) => c.id === result.card.id);
         expect(found).toBeDefined();
@@ -101,23 +101,22 @@ describe('drawCard 抽卡概率算法', () => {
     }
   });
 
-  it('不掉卡概率约为30%', async () => {
+  it('不掉卡概率约为60%', async () => {
     let nullCount = 0;
-    const total = 1000;
+    const total = 2000;
     for (let i = 0; i < total; i++) {
-      const result = await drawCard(new Set());
+      const result = await drawCard(new Set(), 0);
       if (result === null) nullCount++;
     }
-    // 30% ± 10%
-    expect(nullCount).toBeGreaterThan(200);
-    expect(nullCount).toBeLessThan(400);
+    // 60% ± 8%
+    expect(nullCount).toBeGreaterThan(1040);
+    expect(nullCount).toBeLessThan(1360);
   });
 
   it('重复卡返回的卡片确实在已收集列表中', async () => {
     const ownedIds = new Set(['R_0', 'B_0', 'G_0']);
-    // 多次抽卡，验证重复卡确实在已收集列表中
-    for (let i = 0; i < 100; i++) {
-      const result = await drawCard(ownedIds);
+    for (let i = 0; i < 200; i++) {
+      const result = await drawCard(ownedIds, 0);
       if (result !== null && !result.isNew) {
         expect(ownedIds.has(result.card.id)).toBe(true);
       }
@@ -126,8 +125,8 @@ describe('drawCard 抽卡概率算法', () => {
 
   it('新卡返回的卡片确实在未收集列表中', async () => {
     const ownedIds = new Set(['R_0', 'B_0', 'G_0']);
-    for (let i = 0; i < 100; i++) {
-      const result = await drawCard(ownedIds);
+    for (let i = 0; i < 200; i++) {
+      const result = await drawCard(ownedIds, 0);
       if (result !== null && result.isNew) {
         expect(ownedIds.has(result.card.id)).toBe(false);
       }
@@ -135,13 +134,80 @@ describe('drawCard 抽卡概率算法', () => {
   });
 
   it('所有N卡收集完时，N卡概率合并到重复卡', async () => {
-    // 收集所有N卡
     const nCards = UNO_CARDS.filter((c) => c.rarity === 'N');
     const ownedIds = new Set(nCards.map((c) => c.id));
-    // 不应该返回新的N卡
     for (let i = 0; i < 200; i++) {
-      const result = await drawCard(ownedIds);
+      const result = await drawCard(ownedIds, 0);
       if (result !== null && result.card.rarity === 'N') {
+        expect(result.isNew).toBe(false);
+      }
+    }
+  });
+});
+
+describe('drawCard V1.3.0 每日获卡上限', () => {
+  it('todayCardCount >= 5 时 100% 不掉卡', async () => {
+    for (let i = 0; i < 100; i++) {
+      const result = await drawCard(new Set(), 5);
+      expect(result).toBeNull();
+    }
+  });
+
+  it('todayCardCount = 4 时仍有机会掉卡', async () => {
+    let gotCard = false;
+    for (let i = 0; i < 200; i++) {
+      const result = await drawCard(new Set(), 4);
+      if (result !== null) {
+        gotCard = true;
+        break;
+      }
+    }
+    expect(gotCard).toBe(true);
+  });
+
+  it('todayCardCount = 0 时正常掉卡', async () => {
+    let gotCard = false;
+    for (let i = 0; i < 100; i++) {
+      const result = await drawCard(new Set(), 0);
+      if (result !== null) {
+        gotCard = true;
+        break;
+      }
+    }
+    expect(gotCard).toBe(true);
+  });
+});
+
+describe('drawCard V1.3.0 全收集兜底', () => {
+  it('54张全收集后 80%不掉卡 + 20%重复', async () => {
+    const allIds = new Set(UNO_CARDS.map((c) => c.id));
+    let nullCount = 0;
+    let dupCount = 0;
+    const total = 1000;
+
+    for (let i = 0; i < total; i++) {
+      const result = await drawCard(allIds, 0);
+      if (result === null) {
+        nullCount++;
+      } else {
+        expect(result.isNew).toBe(false);
+        expect(allIds.has(result.card.id)).toBe(true);
+        dupCount++;
+      }
+    }
+
+    // 80% ± 10% 不掉卡
+    expect(nullCount).toBeGreaterThan(700);
+    expect(nullCount).toBeLessThan(900);
+    // 有重复卡掉落
+    expect(dupCount).toBeGreaterThan(100);
+  });
+
+  it('全收集时不会返回新卡', async () => {
+    const allIds = new Set(UNO_CARDS.map((c) => c.id));
+    for (let i = 0; i < 200; i++) {
+      const result = await drawCard(allIds, 0);
+      if (result !== null) {
         expect(result.isNew).toBe(false);
       }
     }

@@ -24,9 +24,10 @@ interface ExchangeRecord {
 interface DecorationShopProps {
   circleId: string;
   onClose: () => void;
+  onPurchased?: () => void;
 }
 
-export default function DecorationShop({ circleId, onClose }: DecorationShopProps) {
+export default function DecorationShop({ circleId, onClose, onPurchased }: DecorationShopProps) {
   const [decorations, setDecorations] = useState<Decoration[]>([]);
   const [records, setRecords] = useState<ExchangeRecord[]>([]);
   const [coinBalance, setCoinBalance] = useState(0);
@@ -93,6 +94,11 @@ export default function DecorationShop({ circleId, onClose }: DecorationShopProp
           )
         );
         setMessage(res.data.data.message);
+
+        // 通知父组件购买成功
+        if (onPurchased) {
+          onPurchased();
+        }
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || '购买失败';

@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api';
 
 interface SignCalendarProps {
   circleId: string;
+  onSignSuccess?: (newBalance: number) => void;
 }
 
-export default function SignCalendar({ circleId }: SignCalendarProps) {
+export default function SignCalendar({ circleId, onSignSuccess }: SignCalendarProps) {
   const [isSignedToday, setIsSignedToday] = useState(false);
   const [signInDates, setSignInDates] = useState<string[]>([]);
   const [coinBalance, setCoinBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 加载签到状态
   useEffect(() => {
@@ -30,6 +32,15 @@ export default function SignCalendar({ circleId }: SignCalendarProps) {
     loadSignStatus();
   }, [circleId]);
 
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) {
+        clearTimeout(messageTimerRef.current);
+      }
+    };
+  }, []);
+
   // 签到
   const handleSign = async () => {
     if (isSignedToday || loading) return;
@@ -46,6 +57,19 @@ export default function SignCalendar({ circleId }: SignCalendarProps) {
         // 更新签到日期列表
         const today = new Date().toISOString().split('T')[0];
         setSignInDates(prev => [...prev, today]);
+
+        // 通知父组件鱼币余额更新
+        if (onSignSuccess) {
+          onSignSuccess(res.data.data.coinBalance);
+        }
+
+        // 1.5秒后自动消失
+        if (messageTimerRef.current) {
+          clearTimeout(messageTimerRef.current);
+        }
+        messageTimerRef.current = setTimeout(() => {
+          setMessage('');
+        }, 1500);
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || '签到失败';

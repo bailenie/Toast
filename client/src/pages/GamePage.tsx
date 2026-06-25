@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../utils/api';
 import { useActiveCircle } from '../contexts/ActiveCircleContext';
 import CardDropModal from '../components/game/CardDropModal';
@@ -22,10 +22,11 @@ interface CardInfo {
 interface PetFishData {
   name: string;
   level: number;
-  growth: number;
+  growth: number | string;
   type: string;
   requiredGrowth: number;
   leveledUp?: boolean;
+  isMaxLevel?: boolean;
 }
 
 interface LeaderboardEntry {
@@ -35,12 +36,19 @@ interface LeaderboardEntry {
   totalCount: number;
 }
 
+interface OwnedDecoration {
+  decorationId: string;
+  icon: string;
+}
+
 export default function GamePage() {
   const { activeCircleId } = useActiveCircle();
 
   // 摸鱼状态
   const [todayCount, setTodayCount] = useState(0);
   const [maxCount, setMaxCount] = useState(0);
+  const [todayCardCount, setTodayCardCount] = useState(0);
+  const [maxCardCount, setMaxCardCount] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -65,24 +73,45 @@ export default function GamePage() {
   // 装饰商店
   const [showDecorationShop, setShowDecorationShop] = useState(false);
 
+  // 鱼币余额
+  const [coinBalance, setCoinBalance] = useState(0);
+
+  // 已拥有的装饰
+  const [ownedDecorations, setOwnedDecorations] = useState<OwnedDecoration[]>([]);
+
+  // FishTank ref
+  const fishTankRef = useRef<{ triggerNoCardTip: () => void }>(null);
+
   // 加载初始数据
   const loadData = useCallback(async () => {
     if (!activeCircleId) return;
     try {
-      const [statusRes, cardsRes, leaderboardRes] = await Promise.all([
+      const [statusRes, cardsRes, leaderboardRes, decorationsRes] = await Promise.all([
         api.get(`/moyu/status?circleId=${activeCircleId}`),
         api.get('/moyu/cards'),
         api.get(`/moyu/leaderboard?circleId=${activeCircleId}`),
+        api.get(`/decorations?circleId=${activeCircleId}`),
       ]);
 
       const status = statusRes.data.data;
       setTodayCount(status.todayCount);
       setMaxCount(status.maxCount);
+      setTodayCardCount(status.todayCardCount || 0);
+      setMaxCardCount(status.maxCardCount || 5);
       setPetFish(status.petFish);
+      setCoinBalance(status.coinBalance || 0);
 
       setTotalCards(cardsRes.data.data.totalCount);
       setUniqueCards(cardsRes.data.data.uniqueCount);
       setLeaderboard(leaderboardRes.data.data.leaderboard);
+
+      // 获取已购买装饰
+      if (decorationsRes.data.success) {
+        const purchased = decorationsRes.data.data.decorations
+          .filter((d: any) => d.isPurchased)
+          .map((d: any) => ({ decorationId: d.id, icon: d.icon }));
+        setOwnedDecorations(purchased);
+      }
     } catch (err) {
       console.error('加载数据失败:', err);
     }
@@ -101,14 +130,19 @@ export default function GamePage() {
 
     try {
       const res = await api.post('/moyu/click', { circleId: activeCircleId });
-      const { cards, petFish: newPetFish, todayCount: newTodayCount, maxCount: newMaxCount } = res.data.data;
+      const { cards, petFish: newPetFish, todayCount: newTodayCount, maxCount: newMaxCount, todayCardCount: newTodayCardCount, maxCardCount: newMaxCardCount } = res.data.data;
 
       setDroppedCards(cards);
       if (cards.length > 0) {
         setShowCardModal(true);
+      } else {
+        // 不掉卡时显示轻量提示
+        fishTankRef.current?.triggerNoCardTip();
       }
       setTodayCount(newTodayCount);
       setMaxCount(newMaxCount);
+      setTodayCardCount(newTodayCardCount || 0);
+      setMaxCardCount(newMaxCardCount || 5);
       setPetFish(newPetFish);
 
       // 更新卡片统计
@@ -151,22 +185,34 @@ export default function GamePage() {
             <p className="font-bold text-sm text-gray-500">
               点击宠物鱼带薪抽卡！每戳一次增加鱼池 XP 且掉落卡片。
             </p>
+            {/* 鱼币余额 */}
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-amber-50 border-2 border-amber-200 rounded-full px-3 py-1">
+              <span className="text-sm">🪙</span>
+              <span className="font-display font-bold text-amber-700 text-sm">{coinBalance} 鱼币</span>
+            </div>
           </div>
 
           {/* 主内容区 - 左右布局 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* 第一行左侧：签到日历 */}
-            <SignCalendar circleId={activeCircleId} />
+            <SignCalendar 
+              circleId={activeCircleId} 
+              onSignSuccess={(newBalance) => setCoinBalance(newBalance)}
+            />
 
             {/* 第一行右侧：治愈金鱼池 */}
             <FishTank
+              ref={fishTankRef}
               petFish={petFish}
               todayCount={todayCount}
               maxCount={maxCount}
+              todayCardCount={todayCardCount}
+              maxCardCount={maxCardCount}
               loading={loading}
               error={error}
               onMoyu={handleMoyu}
               onOpenShop={() => setShowDecorationShop(true)}
+              ownedDecorations={ownedDecorations}
             />
 
             {/* 第二行左侧：排行榜 */}
@@ -258,6 +304,7 @@ export default function GamePage() {
         <DecorationShop
           circleId={activeCircleId}
           onClose={() => setShowDecorationShop(false)}
+          onPurchased={loadData}
         />
       )}
     </div>

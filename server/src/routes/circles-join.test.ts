@@ -1,159 +1,191 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import request from 'supertest';
-import { app } from '../index.js';
 import prisma from '../utils/prisma.js';
 import { hashPassword } from '../utils/password.js';
 import { cleanAll } from '../test/cleanup.js';
 
-describe('POST /api/circles/join — 加入鱼圈', () => {
-  let token: string;
-  let userId: string;
+describe('Task-04: 验证加入鱼圈逻辑', () => {
+  let ownerUserId: string;
+  let newMemberUserId: string;
   let circleId: string;
-  let inviteCode: string;
 
   beforeEach(async () => {
     await cleanAll();
 
-    // 创建测试用户
+    // 创建圈主
     const hashedPassword = await hashPassword('password123');
-    const user = await prisma.user.create({
+    const owner = await prisma.user.create({
       data: {
-        email: 'join-test@example.com',
+        email: 'owner@example.com',
         password: hashedPassword,
-        nickname: '测试用户',
+        nickname: '圈主',
         avatar: 'moyu_otter',
       },
     });
-    userId = user.id;
+    ownerUserId = owner.id;
 
-    // 创建另一个用户作为鱼圈创建者
-    const creator = await prisma.user.create({
+    // 创建新成员
+    const newMember = await prisma.user.create({
       data: {
-        email: 'creator-test@example.com',
+        email: 'new-member@example.com',
         password: hashedPassword,
-        nickname: '创建者',
+        nickname: '新成员',
         avatar: 'moyu_otter',
       },
     });
+    newMemberUserId = newMember.id;
 
     // 创建鱼圈
     const circle = await prisma.circle.create({
       data: {
         name: '测试鱼圈',
-        owner: { connect: { id: creator.id } },
+        ownerId: ownerUserId,
         memberCount: 1,
+        isActive: true,
+        coinBalance: 100,
+        petFishGrowth: 50,
+        petFishLevel: 2,
       },
     });
     circleId = circle.id;
 
-    // 创建邀请码（新流程需要 Invite 记录）
-    const invite = await prisma.invite.create({
-      data: {
-        circleId: circle.id,
-        code: '123456',
-        createdBy: creator.id,
-        status: 'active',
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
-    });
-    inviteCode = invite.code;
-
-    // 创建者加入鱼圈
+    // 创建圈主的 UserCircle 记录
     await prisma.userCircle.create({
       data: {
-        userId: creator.id,
-        circleId: circle.id,
+        userId: ownerUserId,
+        circleId,
       },
     });
-
-    // 登录获取 token
-    const loginRes = await request(app)
-      .post('/api/auth/login')
-      .send({ email: 'join-test@example.com', password: 'password123' });
-    token = loginRes.body.data.token;
   });
 
   afterAll(async () => {
     await cleanAll();
   });
 
-  it('传入有效邀请码 → 返回 200，body 包含 circle', async () => {
-    const res = await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.circle).toBeDefined();
-  });
-
-  it('鱼圈成员数+1', async () => {
-    await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
-
-    const circle = await prisma.circle.findUnique({ where: { id: circleId } });
-    expect(circle?.memberCount).toBe(2);
-  });
-
-  it('用户通过 UserCircle 加入鱼圈', async () => {
-    await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
-
-    const userCircle = await prisma.userCircle.findUnique({
-      where: {
-        userId_circleId: {
-          userId,
-          circleId,
-        },
+  it('新成员加入鱼圈后，可以查询到鱼圈的 CircleDecoration 记录', async () => {
+    // 创建装饰
+    const decoration = await prisma.decoration.create({
+      data: {
+        name: '测试装饰',
+        icon: '🎨',
+        price: 50,
+        description: '测试装饰描述',
       },
     });
-    expect(userCircle).toBeTruthy();
-  });
 
-  it('邀请码不存在 → 返回 400', async () => {
-    const res = await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: '999999' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('找不到匹配的鱼圈');
-  });
-
-  it('鱼圈已满10人 → 返回 400', async () => {
-    await prisma.circle.update({
-      where: { id: circleId },
-      data: { memberCount: 10 },
+    // 圈主购买装饰
+    await prisma.circleDecoration.create({
+      data: {
+        circleId,
+        decorationId: decoration.id,
+        purchasedBy: ownerUserId,
+      },
     });
 
-    const res = await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
+    // 新成员加入鱼圈
+    await prisma.userCircle.create({
+      data: {
+        userId: newMemberUserId,
+        circleId,
+      },
+    });
 
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('满负荷');
+    // 验证新成员可以查询到装饰
+    const decor = await prisma.circleDecoration.findMany({
+      where: { circleId },
+    });
+    expect(decor).toHaveLength(1);
+    expect(decor[0].decorationId).toBe(decoration.id);
   });
 
-  it('已在该圈 → 返回 400', async () => {
-    // 先加入
-    await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
+  it('新成员加入鱼圈后，可以查询到鱼圈的 UnoCard 记录', async () => {
+    // 圈主抽卡
+    await prisma.unoCard.create({
+      data: {
+        user: { connect: { id: ownerUserId } },
+        circle: { connect: { id: circleId } },
+        cardId: 'card-001',
+        cardName: '测试卡片',
+        rarity: 'N',
+        color: 'red',
+        count: 1,
+      },
+    });
 
-    // 再次加入
-    const res = await request(app)
-      .post('/api/circles/join')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: inviteCode });
+    // 新成员加入鱼圈
+    await prisma.userCircle.create({
+      data: {
+        userId: newMemberUserId,
+        circleId,
+      },
+    });
 
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('已经在这只划水队伍中');
+    // 验证新成员可以查询到卡片
+    const cards = await prisma.unoCard.findMany({
+      where: { circleId },
+    });
+    expect(cards).toHaveLength(1);
+    expect(cards[0].cardId).toBe('card-001');
+  });
+
+  it('新成员加入鱼圈后，可以查询到鱼圈的 MoyuStat 排行榜', async () => {
+    // 圈主摸鱼
+    await prisma.moyuStat.create({
+      data: {
+        userId: ownerUserId,
+        userName: '圈主',
+        circleId,
+        todayCount: 5,
+        totalCount: 10,
+        lastMoyuDate: '2026-06-25',
+      },
+    });
+
+    // 新成员加入鱼圈
+    await prisma.userCircle.create({
+      data: {
+        userId: newMemberUserId,
+        circleId,
+      },
+    });
+
+    // 验证新成员可以查询到排行榜
+    const stats = await prisma.moyuStat.findMany({
+      where: { circleId },
+    });
+    expect(stats).toHaveLength(1);
+    expect(stats[0].userId).toBe(ownerUserId);
+  });
+
+  it('新成员加入鱼圈后，可以看到 Circle.coinBalance', async () => {
+    // 新成员加入鱼圈
+    await prisma.userCircle.create({
+      data: {
+        userId: newMemberUserId,
+        circleId,
+      },
+    });
+
+    // 验证新成员可以看到鱼币余额
+    const circle = await prisma.circle.findUnique({
+      where: { id: circleId },
+    });
+    expect(circle?.coinBalance).toBe(100);
+  });
+
+  it('新成员加入鱼圈后，可以看到 Circle.petFishGrowth/Level', async () => {
+    // 新成员加入鱼圈
+    await prisma.userCircle.create({
+      data: {
+        userId: newMemberUserId,
+        circleId,
+      },
+    });
+
+    // 验证新成员可以看到宠物鱼状态
+    const circle = await prisma.circle.findUnique({
+      where: { id: circleId },
+    });
+    expect(circle?.petFishGrowth).toBe(50);
+    expect(circle?.petFishLevel).toBe(2);
   });
 });

@@ -47,9 +47,10 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
     if (stat.lastMoyuDate !== today) {
       await prisma.moyuStat.update({
         where: { id: stat.id },
-        data: { todayCount: 0, lastMoyuDate: today },
+        data: { todayCount: 0, todayCardCount: 0, lastMoyuDate: today },
       });
       stat.todayCount = 0;
+      stat.todayCardCount = 0;
     }
 
     // 检查是否达到上限（固定30次）
@@ -61,15 +62,15 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
       return;
     }
 
-    // 抽卡（V1.1.0 5档概率算法）
+    // 抽卡（V1.3.0 概率算法，支持每日获卡上限）
     const userCards = await prisma.unoCard.findMany({ where: { userId } });
     const ownedCardIds = new Set(userCards.map((c) => c.cardId));
-    const drawResult = await drawCard(ownedCardIds);
+    const drawResult = await drawCard(ownedCardIds, stat.todayCardCount);
 
     // 保存卡片到用户收集库
     if (drawResult) {
       const existingCard = await prisma.unoCard.findFirst({
-        where: { userId, cardId: drawResult.card.id },
+        where: { userId, circleId, cardId: drawResult.card.id },
       });
 
       if (existingCard) {
@@ -81,6 +82,7 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
         await prisma.unoCard.create({
           data: {
             userId,
+            circleId,
             cardId: drawResult.card.id,
             cardName: drawResult.card.name,
             count: 1,
@@ -89,6 +91,13 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
           },
         });
       }
+
+      // 更新今日获卡计数
+      await prisma.moyuStat.update({
+        where: { id: stat.id },
+        data: { todayCardCount: { increment: 1 } },
+      });
+      stat.todayCardCount += 1;
     }
 
     // 更新摸鱼统计
@@ -106,49 +115,64 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
 
     const circle = await prisma.circle.findUnique({ where: { id: circleId } });
     if (circle) {
-      const newGrowth = circle.petFishGrowth + 1;
-      const levelIndex = circle.petFishLevel - 1; // 0-based
-      const threshold = GROWTH_THRESHOLDS[levelIndex]; // 当前等级升级所需
-
-      if (threshold !== undefined && newGrowth >= threshold && circle.petFishLevel < 4) {
-        // 升级
-        const newLevel = circle.petFishLevel + 1;
-        const overflow = newGrowth - threshold;
-        const fishType = FISH_TYPE_MAP[newLevel] || FISH_TYPE_MAP[1];
-
-        await prisma.circle.update({
-          where: { id: circleId },
-          data: {
-            petFishLevel: newLevel,
-            petFishGrowth: overflow,
-            petFishType: fishType.name,
-          },
-        });
-
+      // AC-107: 满级检查（5级为满级）
+      if (circle.petFishLevel >= 5) {
         petFish = {
           name: circle.petFishName,
-          level: newLevel,
-          growth: overflow,
-          type: fishType.name,
-          requiredGrowth: GROWTH_THRESHOLDS[newLevel - 1] || 0,
-          leveledUp: true,
+          level: 5,
+          growth: circle.petFishGrowth,
+          type: FISH_TYPE_MAP[5]?.name || '传说级摸鱼之神',
+          requiredGrowth: 4000,
+          leveledUp: false,
+          isMaxLevel: true,
         };
       } else {
-        // 未升级，成长值+1
-        await prisma.circle.update({
-          where: { id: circleId },
-          data: { petFishGrowth: { increment: 1 } },
-        });
+        const newGrowth = circle.petFishGrowth + 1;
+        const levelIndex = circle.petFishLevel - 1; // 0-based
+        const threshold = GROWTH_THRESHOLDS[levelIndex]; // 当前等级升级所需
 
-        const nextThreshold = GROWTH_THRESHOLDS[levelIndex] || 0;
-        petFish = {
-          name: circle.petFishName,
-          level: circle.petFishLevel,
-          growth: newGrowth,
-          type: circle.petFishType,
-          requiredGrowth: nextThreshold,
-          leveledUp: false,
-        };
+        if (threshold !== undefined && newGrowth >= threshold) {
+          // 升级
+          const newLevel = circle.petFishLevel + 1;
+          const overflow = newGrowth - threshold;
+          const fishType = FISH_TYPE_MAP[newLevel] || FISH_TYPE_MAP[1];
+
+          await prisma.circle.update({
+            where: { id: circleId },
+            data: {
+              petFishLevel: newLevel,
+              petFishGrowth: overflow,
+              petFishType: fishType.name,
+            },
+          });
+
+          petFish = {
+            name: circle.petFishName,
+            level: newLevel,
+            growth: overflow,
+            type: fishType.name,
+            requiredGrowth: GROWTH_THRESHOLDS[newLevel - 1] || 4000,
+            leveledUp: true,
+            isMaxLevel: newLevel >= 5,
+          };
+        } else {
+          // 未升级，成长值+1
+          await prisma.circle.update({
+            where: { id: circleId },
+            data: { petFishGrowth: { increment: 1 } },
+          });
+
+          const nextThreshold = GROWTH_THRESHOLDS[levelIndex] || 0;
+          petFish = {
+            name: circle.petFishName,
+            level: circle.petFishLevel,
+            growth: newGrowth,
+            type: circle.petFishType,
+            requiredGrowth: nextThreshold,
+            leveledUp: false,
+            isMaxLevel: false,
+          };
+        }
       }
     }
 
@@ -169,6 +193,8 @@ moyuRouter.post('/click', authMiddleware, async (req, res) => {
         petFish,
         todayCount: updatedStat?.todayCount || 1,
         maxCount: DAILY_MOYU_LIMIT,
+        todayCardCount: updatedStat?.todayCardCount || 0,
+        maxCardCount: 5,
         totalCount: updatedStat?.totalCount || 1,
       },
     });
@@ -218,9 +244,10 @@ moyuRouter.get('/status', authMiddleware, async (req, res) => {
     if (stat.lastMoyuDate !== today) {
       await prisma.moyuStat.update({
         where: { id: stat.id },
-        data: { todayCount: 0, lastMoyuDate: today },
+        data: { todayCount: 0, todayCardCount: 0, lastMoyuDate: today },
       });
       stat.todayCount = 0;
+      stat.todayCardCount = 0;
     }
 
     // 获取宠物鱼信息
@@ -228,12 +255,14 @@ moyuRouter.get('/status', authMiddleware, async (req, res) => {
     const circle = await prisma.circle.findUnique({ where: { id: circleId } });
     if (circle) {
       const levelIndex = circle.petFishLevel - 1;
+      const isMaxLevel = circle.petFishLevel >= 5;
       petFish = {
         name: circle.petFishName,
         level: circle.petFishLevel,
-        growth: circle.petFishGrowth,
+        growth: isMaxLevel ? 'MAX' : circle.petFishGrowth,
         type: circle.petFishType,
-        requiredGrowth: GROWTH_THRESHOLDS[levelIndex] || 0,
+        requiredGrowth: isMaxLevel ? 4000 : (GROWTH_THRESHOLDS[levelIndex] || 0),
+        isMaxLevel,
       };
     }
 
@@ -242,7 +271,10 @@ moyuRouter.get('/status', authMiddleware, async (req, res) => {
       data: {
         todayCount: stat.todayCount,
         maxCount: DAILY_MOYU_LIMIT,
+        todayCardCount: stat.todayCardCount,
+        maxCardCount: 5,
         petFish,
+        coinBalance: circle?.coinBalance || 0,
       },
     });
   } catch (error) {

@@ -68,8 +68,8 @@ model UserCircle {
   circleId  String
   joinedAt  DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
-  circle    Circle   @relation(fields: [circleId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, circleId])
   @@index([userId])
@@ -105,7 +105,7 @@ model UnoCard {
   updatedAt DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id])
-  circle    Circle   @relation(fields: [circleId], references: [id])
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@unique([circleId, cardId])
   @@index([userId])
@@ -113,18 +113,19 @@ model UnoCard {
 }
 
 model MoyuStat {
-  id            String   @id @default(uuid())
-  userId        String
-  userName      String
-  circleId      String
-  todayCount    Int      @default(0)
-  totalCount    Int      @default(0)
-  lastMoyuDate  String   @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(uuid())
+  userId          String
+  userName        String
+  circleId        String
+  todayCount      Int      @default(0)
+  todayCardCount  Int      @default(0)
+  totalCount      Int      @default(0)
+  lastMoyuDate    String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user          User     @relation(fields: [userId], references: [id])
-  circle        Circle   @relation(fields: [circleId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  circle          Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, circleId])
   @@index([userId])
@@ -139,7 +140,7 @@ model SignRecord {
   createdAt  DateTime @default(now())
 
   user       User     @relation(fields: [userId], references: [id])
-  circle     Circle   @relation(fields: [circleId], references: [id])
+  circle     Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, circleId, signDate])
   @@index([userId])
@@ -164,7 +165,7 @@ model CircleDecoration {
   purchasedBy  String
   purchasedAt  DateTime @default(now())
 
-  circle       Circle     @relation(fields: [circleId], references: [id])
+  circle       Circle     @relation(fields: [circleId], references: [id], onDelete: Cascade)
   decoration   Decoration @relation(fields: [decorationId], references: [id])
   user         User       @relation(fields: [purchasedBy], references: [id])
 
@@ -180,7 +181,7 @@ model ExchangeRecord {
   cost         Int
   createdAt    DateTime @default(now())
 
-  circle       Circle     @relation(fields: [circleId], references: [id])
+  circle       Circle     @relation(fields: [circleId], references: [id], onDelete: Cascade)
   user         User       @relation(fields: [userId], references: [id])
   decoration   Decoration @relation(fields: [decorationId], references: [id])
 

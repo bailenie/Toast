@@ -96,7 +96,7 @@ export default function CircleManagePage() {
     );
   }
 
-  const isOwner = circle?.ownerId === user?.uid;
+  const isOwner = circle?.ownerId === user?.id;
 
   const handleCopyCode = async () => {
     if (!circle?.inviteCode) return;

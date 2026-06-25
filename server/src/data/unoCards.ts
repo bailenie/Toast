@@ -102,8 +102,8 @@ export function getCardById(cardId: string): UnoCardInfo | undefined {
 /** 每日摸鱼上限（固定30次） */
 export const DAILY_MOYU_LIMIT = 30;
 
-/** 宠物鱼升级所需成长值（索引0=等级1→2，索引1=等级2→3，索引2=等级3→4） */
-export const GROWTH_THRESHOLDS = [10, 20, 30];
+/** 宠物鱼升级所需成长值（索引0=等级1→2，索引1=等级2→3，索引2=等级3→4，索引3=等级4→5） */
+export const GROWTH_THRESHOLDS = [1000, 2000, 3000, 4000];
 
 /** 宠物鱼等级→品类映射 */
 export const FISH_TYPE_MAP: Record<number, { name: string; emoji: string }> = {
@@ -111,6 +111,7 @@ export const FISH_TYPE_MAP: Record<number, { name: string; emoji: string }> = {
   2: { name: '带薪发愣神游鳌', emoji: '🐙' },
   3: { name: '太极双休太公鱼', emoji: '🐙' },
   4: { name: '极品七彩锦鲤皇', emoji: '🎏' },
+  5: { name: '传说级摸鱼之神', emoji: '🐉' },
 };
 
 // ==================== V1.1.0 抽卡概率算法 ====================
@@ -136,19 +137,28 @@ function pickRandom<T>(arr: T[]): T {
 }
 
 /**
- * V1.1.0 抽卡算法：5档概率分布
+ * V1.3.0 抽卡算法：5档概率分布
  *
- * 30% 不掉卡
- * 30% 掉已有卡（重复）
- * 20% 掉不重复普通卡(N)
- * 15% 掉不重复稀有卡(R)
- *  5% 掉不重复超稀有卡(SR)
+ * 60% 不掉卡
+ * 20% 掉已有卡（重复）
+ * 10% 掉不重复普通卡(N)
+ *  7% 掉不重复稀有卡(R)
+ *  3% 掉不重复超稀有卡(SR)
  *
- * 边界处理：某稀有度全部收集完时，该区间合并到重复卡
+ * 特殊规则：
+ * - 每日获卡上限5张（todayCardCount >= 5 则 100%不掉卡）
+ * - 全收集兜底：54张全收集后 80%不掉卡 + 20%重复
+ * - 稀有卡(R/SR)不会重复
  */
 export async function drawCard(
-  ownedCardIds: Set<string>
+  ownedCardIds: Set<string>,
+  todayCardCount: number = 0
 ): Promise<DrawResult | null> {
+  // AC-109: 每日获卡上限检查
+  if (todayCardCount >= 5) {
+    return null; // 100%不掉卡
+  }
+
   // 计算各稀有度未收集卡片
   const availableN = CARDS_BY_RARITY.N.filter((c) => !ownedCardIds.has(c.id));
   const availableR = CARDS_BY_RARITY.R.filter((c) => !ownedCardIds.has(c.id));
@@ -156,36 +166,33 @@ export async function drawCard(
     (c) => !ownedCardIds.has(c.id)
   );
 
-  // 动态计算概率区间（收集完的稀有度合并到重复卡）
-  let repeatEnd = 60; // 30-60: 重复卡
-  let nEnd = 80; // 60-80: 不重复N
-  let rEnd = 95; // 80-95: 不重复R
-  // 95-100: 不重复SR
+  // AC-105: 全收集兜底检查
+  const allCollected = availableN.length === 0 && availableR.length === 0 && availableSR.length === 0;
 
-  if (availableN.length === 0) {
-    // N卡全部收集完，20%合并到重复卡
-    nEnd = 60;
-    repeatEnd = 80;
-  }
-  if (availableR.length === 0) {
-    // R卡全部收集完，15%合并到重复卡
-    rEnd = nEnd;
-    repeatEnd += 15;
-  }
-  if (availableSR.length === 0) {
-    // SR卡全部收集完，5%合并到重复卡
-    repeatEnd += 5;
-  }
-
-  const rand = Math.random() * 100;
-
-  // 30% 不掉卡
-  if (rand < 30) {
+  // 全收集兜底：80%不掉卡，20%重复卡
+  if (allCollected) {
+    if (Math.random() < 0.8) {
+      return null;
+    }
+    // 20% 掉重复卡
+    if (ownedCardIds.size > 0) {
+      const ownedCards = UNO_CARDS.filter((c) => ownedCardIds.has(c.id));
+      const card = pickRandom(ownedCards);
+      return { card, isNew: false };
+    }
     return null;
   }
 
-  // 重复卡区间
-  if (rand < repeatEnd) {
+  // 正常概率分布
+  const rand = Math.random() * 100;
+
+  // 60% 不掉卡
+  if (rand < 60) {
+    return null;
+  }
+
+  // 20% 重复卡（60-80）
+  if (rand < 80) {
     // 如果用户没有任何已收集卡片，从全池随机
     if (ownedCardIds.size === 0) {
       const card = pickRandom(UNO_CARDS);
@@ -197,25 +204,25 @@ export async function drawCard(
     return { card, isNew: false };
   }
 
-  // 不重复N卡
-  if (rand < nEnd && availableN.length > 0) {
+  // 10% 不重复N卡（80-90）
+  if (rand < 90 && availableN.length > 0) {
     const card = pickRandom(availableN);
     return { card, isNew: true };
   }
 
-  // 不重复R卡
-  if (rand < rEnd && availableR.length > 0) {
+  // 7% 不重复R卡（90-97）
+  if (rand < 97 && availableR.length > 0) {
     const card = pickRandom(availableR);
     return { card, isNew: true };
   }
 
-  // 不重复SR卡
+  // 3% 不重复SR卡（97-100）
   if (availableSR.length > 0) {
     const card = pickRandom(availableSR);
     return { card, isNew: true };
   }
 
-  // 兜底：所有卡都收集完了，掉重复卡
+  // 兜底：掉重复卡
   if (ownedCardIds.size > 0) {
     const ownedCards = UNO_CARDS.filter((c) => ownedCardIds.has(c.id));
     const card = pickRandom(ownedCards);
