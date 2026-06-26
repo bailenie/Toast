@@ -20,7 +20,7 @@ export default function Navbar() {
             onClick={() => navigate('/')}
             className="font-display font-black text-lg text-ink select-none hover:opacity-80 transition-opacity active:translate-y-0.5"
           >
-            🦦 摸鱼鱼
+            🦦 吐司
           </button>
 
           {/* 窝囊费页面返回按钮 */}

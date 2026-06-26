@@ -15,13 +15,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 响应拦截：401 自动清除 Token
+// 响应拦截：401 自动清除 Token，提取后端友好错误消息
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       removeToken();
     }
+
+    // 提取后端返回的友好错误消息
+    const backendMessage = error.response?.data?.message;
+    if (backendMessage) {
+      error.message = backendMessage;
+    }
+
     return Promise.reject(error);
   },
 );

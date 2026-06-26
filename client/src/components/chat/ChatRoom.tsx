@@ -49,12 +49,9 @@ export default function ChatRoom({ circleId, circleName }: ChatRoomProps) {
     <div className="flex flex-col h-full overflow-hidden">
       {/* 顶部信息栏 */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b-2 border-ink bg-bg-page">
-        <button
-          onClick={() => setIsPanelOpen(true)}
-          className="font-display font-black text-lg text-ink hover:text-accent transition-colors"
-        >
+        <span className="font-display font-black text-lg text-ink">
           {circleName}
-        </button>
+        </span>
         <div className="flex items-center gap-2">
           <span className="bg-accent-bg text-ink font-bold text-xs px-2 py-1 rounded-lg">蛐蛐间</span>
           <span className="bg-red-100 text-red-600 font-bold text-xs px-2 py-1 rounded-lg">5MIN瞬时阅后即焚</span>
